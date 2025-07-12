@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Redirect to Form</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding-top: 20vh;
+    }
+    .message {
+      font-size: 1.2rem;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+  <div class="message" id="msg">Checking device...</div>
+
+  <script>
+    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+    const notionURL = "https://talentin.notion.site/22d5b23d5aa780c78bedcfb979f10609?pvs=105"; // Replace with your actual Notion form link
+
+    if (isMobile) {
+      document.getElementById("msg").innerText =
+        "This form can only be accessed from a desktop or laptop computer.";
+    } else {
+      window.location.href = notionURL;
+    }
+  </script>
+</body>
+</html>
