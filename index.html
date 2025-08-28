@@ -4,6 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TalentIn Olympics</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f1221">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
   <style>
     :root{
       --bg:#0f1221; --text:#e8ecff; --muted:#a6b0d8; --danger:#ff3b3b; --ok:#2bd979; --neon:#f1ff8a;
@@ -279,5 +286,20 @@
       renderString('00.00');
     })();
   </script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js');
+  }
+  // Optional: try to keep screen awake during play
+  if ('wakeLock' in navigator) {
+    let lock; const request = async () => { try { lock = await navigator.wakeLock.request('screen'); } catch {}
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') request();
+    });
+    request();
+  }
+</script>
+
 </body>
 </html>
