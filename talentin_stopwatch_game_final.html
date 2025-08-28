@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TalentIn Olympics</title>
+  <style>
+    :root{
+      --bg:#0f1221; --text:#e8ecff; --muted:#a6b0d8; --danger:#ff3b3b; --ok:#2bd979; --neon:#f1ff8a;
+      --led:#ff4040;                 /* LED fill (red by default) */
+      --glow: rgba(140,0,0,.42);      /* dark red glow */
+      --glow-blue: rgba(10,40,130,.46);/* dark blue glow for special */
+    }
+    *{box-sizing:border-box}
+    html,body{ height:100%; margin:0; color:var(--text); font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; }
+
+    /* Background gradients on one fixed layer to avoid overlap/clipping */
+    body{ position:relative; min-height:100vh; display:grid; place-items:center; padding:24px; background:var(--bg); isolation:isolate; }
+    body::before{
+      content:""; position:fixed; inset:-20vh -20vw; z-index:-1; pointer-events:none; background-repeat:no-repeat;
+      background:
+        radial-gradient(1100px 780px at 75% -10%, rgba(124,156,255,.22) 0%, rgba(124,156,255,0) 70%),
+        radial-gradient(1200px 760px at 88% 85%, rgba(241,255,138,.40) 0%, rgba(241,255,138,0) 65%),
+        radial-gradient(900px 620px at 12% 88%, rgba(57,224,255,.22) 0%, rgba(57,224,255,0) 62%),
+        radial-gradient(900px 600px at 0% 0%, rgba(42,103,91,.24) 0%, rgba(42,103,91,0) 55%);
+    }
+
+    .card{display:grid; grid-template-rows:auto 1fr auto; gap:18px; justify-items:center; width:min(1200px,96vw)}
+    h1{margin:0; font-size:clamp(26px,3.5vw,42px); color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:.6px}
+
+    /* Stopwatch board (darker) */
+    .board{display:grid; place-items:center; width:100%; height:min(460px,58vh); border-radius:18px;
+      background: linear-gradient(180deg, #090d1a, #050914);
+      border: 2px solid rgba(255,255,255,.06);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.02), 0 24px 40px rgba(0,0,0,.55);
+      position:relative; overflow:hidden; padding: clamp(12px,2vw,20px)}
+    .board::before{content:""; position:absolute; inset:0; pointer-events:none;
+      background: radial-gradient(140% 120% at 50% 30%, rgba(0,0,0,.0) 0%, rgba(0,0,0,.42) 80%);
+    }
+
+    /* SVG LED styling */
+    #led { width:100%; height:100%; display:block; will-change:transform; transform:translateZ(0); shape-rendering:optimizeSpeed; }
+    .seg { fill: rgba(255,255,255,0.06); } /* off state */
+    .on  { fill: var(--led); }
+    .dot { fill: var(--led); }
+    .halo{ fill: radial-gradient(var(--glow)); }
+    .digitHalo { opacity:.55; }
+
+    /* use drop-shadows sparingly for smoothness */
+    .lit { /* removed per-segment filter for performance; halo handles glow */ }
+
+    /* Success state: keep digits green + blue glow */
+    .display.success { --led: var(--ok); --glow: var(--glow-blue); animation:bounceGlow .8s ease-out 0s 6 alternate; }
+    @keyframes bounceGlow{0%{transform:translateY(0) scale(1)}50%{transform:translateY(-6px) scale(1.02)}100%{transform:translateY(0) scale(1)}}
+
+    .indicator{color:var(--muted); display:flex; align-items:center; gap:10px; font-size:clamp(14px,2.4vw,18px)}
+    .dotStat{inline-size:12px; block-size:12px; border-radius:50%; background:#ff5a5a}
+    .dotStat.running{background:var(--ok); box-shadow:0 0 0 0 rgba(43,217,121,.6); animation:pulse 1.4s ease-out infinite}
+    @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(43,217,121,.6)}70%{box-shadow:0 0 0 16px rgba(43,217,121,0)}100%{box-shadow:0 0 0 0 rgba(43,217,121,0)}}
+
+    .bigbtn{appearance:none; border:0; cursor:pointer; position:relative; width:min(220px,28vw); height:min(220px,28vw); border-radius:50%;
+      background: radial-gradient(circle at 30% 30%, #ff7a7a, #ff3b3b 60%, #b91515 100%);
+      box-shadow: 0 18px 38px rgba(255,59,59,.35), inset 0 2px 6px rgba(255,255,255,.25);
+      transition: transform .06s ease, filter .2s ease}
+    .bigbtn:hover{filter:brightness(1.05)} .bigbtn:active{transform:translateY(2px) scale(.99)}
+    .icon{position:absolute; inset:0; display:grid; place-items:center}
+    .icon svg{width:42%; height:42%; fill:#0b0f1a}
+    .icon.stop{display:none} .bigbtn.running .icon.play{display:none} .bigbtn.running .icon.stop{display:grid}
+  </style>
+</head>
+<body>
+  <div class="card" role="region" aria-label="Timer">
+    <h1>TalentIn Olympics</h1>
+    <div class="board">
+      <svg id="led" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+      <div id="display" class="display" aria-live="polite" aria-atomic="true" hidden>00.0</div>
+    </div>
+    <div class="indicator" aria-live="polite" aria-atomic="true">
+      <span class="dotStat" id="statusDot" aria-hidden="true"></span>
+      <span id="statusText">Ready</span>
+    </div>
+    <button id="toggleBtn" class="bigbtn" aria-pressed="false" title="Start/Stop (Space)">
+      <span class="icon play" aria-hidden="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg>
+      </span>
+      <span class="icon stop" aria-hidden="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+      </span>
+    </button>
+  </div>
+
+  <script>
+    (function(){
+      const led = document.getElementById('led');
+      const displayEl = document.getElementById('display');
+      const toggleBtn = document.getElementById('toggleBtn');
+      const statusDot = document.getElementById('statusDot');
+      const statusText = document.getElementById('statusText');
+      const board = document.querySelector('.board');
+
+      let rafId = null; let running = false; let startTs = 0; let elapsed = 0; // ms
+
+      function pad(n,s){let t=String(n); while(t.length<s) t='0'+t; return t}
+      function format(ms){
+        const totalSeconds = Math.floor(ms/1000);
+        const msec = Math.floor(ms%1000);
+        const secStr = String(totalSeconds).padStart(2,'0');
+        const hundredths = Math.floor(msec/10);
+        const frac = String(hundredths).padStart(2,'0');
+        return `${secStr}.${frac}`;
+      }
+
+      // 7‑segment geometry
+      const W=90, H=160, T=20, B=10, GAP=16, DOT_ADV=26, DOT_R=T*0.45;
+      const onMap={ '0':['a','b','c','d','e','f'], '1':['b','c'], '2':['a','b','g','e','d'], '3':['a','b','g','c','d'], '4':['f','g','b','c'], '5':['a','f','g','c','d'], '6':['a','f','g','c','d','e'], '7':['a','b','c'], '8':['a','b','c','d','e','f','g'], '9':['a','b','c','d','f','g'] };
+
+      // Build one digit group (with a subtle red halo behind to improve readability)
+      function buildDigitGroup(){
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        const halo = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        halo.setAttribute('x', -GAP*0.2); halo.setAttribute('y', 0);
+        halo.setAttribute('width', W+GAP*0.4); halo.setAttribute('height', H);
+        halo.setAttribute('rx', 16); halo.setAttribute('ry', 16);
+        halo.setAttribute('fill', 'url(#haloGrad)'); halo.setAttribute('opacity','0.60');
+        halo.setAttribute('class','digitHalo');
+        g.appendChild(halo);
+
+        const segKeys=['a','b','c','d','e','f','g'];
+        segKeys.forEach(k=>{
+          const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+          p.setAttribute('data-seg', k);
+          p.setAttribute('d', segPath(k));
+          p.setAttribute('class','seg');
+          g.appendChild(p);
+        });
+        return g;
+      }
+
+      function buildDotGroup(){
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        const halo = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        halo.setAttribute('cx', DOT_ADV/2); halo.setAttribute('cy', H - T*0.8); halo.setAttribute('r', DOT_R*1.25);
+        halo.setAttribute('fill','url(#haloGrad)'); halo.setAttribute('opacity','0.60');
+        g.appendChild(halo);
+
+        const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        c.setAttribute('cx', DOT_ADV/2); c.setAttribute('cy', H - T*0.8); c.setAttribute('r', DOT_R);
+        c.setAttribute('class','dot on lit');
+        g.appendChild(c);
+        return g;
+      }
+
+      function segPath(key){
+        const t=T, b=B, w=W, h=H;
+        switch(key){
+          case 'a': return `M ${b} ${t/2} L ${w-b} ${t/2} L ${w-b-t/2} ${t+b/2} L ${b+t/2} ${t+b/2} Z`;
+          case 'd': return `M ${b} ${h-t/2} L ${w-b} ${h-t/2} L ${w-b-t/2} ${h-t-b/2} L ${b+t/2} ${h-t-b/2} Z`;
+          case 'g': const y=h/2; return `M ${b} ${y} L ${b+t/2} ${y-t/2} L ${w-b-t/2} ${y-t/2} L ${w-b} ${y} L ${w-b-t/2} ${y+t/2} L ${b+t/2} ${y+t/2} Z`;
+          case 'f': return `M ${t/2} ${b} L ${t+b/2} ${b+t/2} L ${t+b/2} ${h/2-t/2} L ${t/2} ${h/2} Z`;
+          case 'e': return `M ${t/2} ${h/2} L ${t+b/2} ${h/2+t/2} L ${t+b/2} ${h-b-t/2} L ${t/2} ${h-b} Z`;
+          case 'b': return `M ${w-t/2} ${b} L ${w-t-b/2} ${b+t/2} L ${w-t-b/2} ${h/2-t/2} L ${w-t/2} ${h/2} Z`;
+          case 'c': return `M ${w-t/2} ${h/2} L ${w-t-b/2} ${h/2+t/2} L ${w-t-b/2} ${h-b-t/2} L ${w-t/2} ${h-b} Z`;
+          default: return '';
+        }
+      }
+
+      // Prebuild slots for max-length string (SS.mmm → 6 slots)
+      const MAX_SLOTS = 6; // 2 sec + '.' + up to 3 decimals supported
+      let wrapG = null;
+      const TOTAL_WIDTH = (W+GAP)*5 + DOT_ADV; // full grid width for 3 decimals
+      const slots=[]; // {g, type: 'digit'|'dot', segEls}
+      function mount(){
+        // defs: radial gradient halo
+        const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+        const grad = document.createElementNS('http://www.w3.org/2000/svg','radialGradient');
+        grad.setAttribute('id','haloGrad'); grad.setAttribute('cx','50%'); grad.setAttribute('cy','50%'); grad.setAttribute('r','80%');
+        const s1=document.createElementNS('http://www.w3.org/2000/svg','stop'); s1.setAttribute('offset','0%'); s1.setAttribute('stop-color','var(--glow)'); s1.setAttribute('stop-opacity','1');
+        const s2=document.createElementNS('http://www.w3.org/2000/svg','stop'); s2.setAttribute('offset','100%'); s2.setAttribute('stop-color','transparent'); s2.setAttribute('stop-opacity','0');
+        grad.appendChild(s1); grad.appendChild(s2); defs.appendChild(grad); led.appendChild(defs);
+
+        led.setAttribute('viewBox', `0 0 ${TOTAL_WIDTH} ${H}`);
+        wrapG = document.createElementNS('http://www.w3.org/2000/svg','g');
+        led.appendChild(wrapG);
+        let x=0;
+        for(let i=0;i<MAX_SLOTS;i++){
+          const isDot = (i===2); // slot 2 is the decimal point
+          const g = isDot ? buildDotGroup() : buildDigitGroup();
+          g.setAttribute('transform',`translate(${x},0)`);
+          wrapG.appendChild(g);
+          slots.push({g, type:isDot?'dot':'digit', segEls: isDot? [] : Array.from(g.querySelectorAll('[data-seg]'))});
+          x += isDot ? DOT_ADV : (W+GAP);
+        }
+      }
+
+      function setCharInSlot(i, ch){
+        const s = slots[i]; if(!s) return;
+        if(s.type==='dot'){
+          // dot is always visible for slot 2
+          s.g.style.display='';
+          return;
+        }
+        // update segments for digit
+        const on = onMap[ch] || [];
+        s.segEls.forEach(p=>{
+          const k=p.getAttribute('data-seg');
+          if(on.includes(k)) p.setAttribute('class','seg on lit'); else p.setAttribute('class','seg');
+        });
+        s.g.style.display='';
+      }
+
+      function hideTail(fromIndex){ for(let i=fromIndex;i<MAX_SLOTS;i++){ if(i!==2) slots[i].g.style.display='none'; } }
+
+      function renderString(str){
+        // Expected SS.xx (two decimals). Still supports 3 if needed.
+        setCharInSlot(0, str[0]);
+        setCharInSlot(1, str[1]);
+        slots[2].g.style.display=''; // dot
+        const decCount = Math.max(0, str.length - 3); // chars after 'SS.'
+        if(decCount >= 1) setCharInSlot(3, str[3]); else slots[3].g.style.display='none';
+        if(decCount >= 2) setCharInSlot(4, str[4]); else slots[4].g.style.display='none';
+        if(decCount >= 3) setCharInSlot(5, str[5]); else slots[5].g.style.display='none';
+        // Center used width inside TOTAL_WIDTH
+        const used = (W+GAP)*(2 + decCount) + DOT_ADV; // seconds + dot + decimals
+        const offset = Math.max(0, (TOTAL_WIDTH - used) / 2);
+        if(wrapG) wrapG.setAttribute('transform', `translate(${offset},0)`);
+      }
+
+      function syncSize(){ led.style.width = '96%'; led.style.height = '90%'; }
+
+      function setSuccess(on){
+        board.classList.toggle('success', !!on);
+        if(on){ led.parentElement.classList.add('display','success'); }
+        else { led.parentElement.classList.remove('display','success'); }
+      }
+
+      function render(){
+        const now = performance.now();
+        const current = running ? (now - startTs) : elapsed;
+        const str = format(current);
+        displayEl.textContent = str; // aria
+        renderString(str);
+        if(running) rafId = requestAnimationFrame(render);
+      }
+
+      function setRunningState(isRunning){
+        running = isRunning;
+        toggleBtn.classList.toggle('running', running);
+        toggleBtn.setAttribute('aria-pressed', String(running));
+        statusText.textContent = running ? 'Running' : 'Ready';
+        statusDot.classList.toggle('running', running);
+        if(running){ setSuccess(false); }
+      }
+
+      function start(){
+        if(running) return;
+        startTs = performance.now() - elapsed;
+        setRunningState(true);
+        cancelAnimationFrame(rafId);
+        render(); // immediate paint to reduce perceived latency
+        rafId = requestAnimationFrame(render);
+      }
+      function stop(){ if(!running) return; cancelAnimationFrame(rafId); rafId = null; elapsed = performance.now() - startTs; setRunningState(false); render(); const shown = format(elapsed); setSuccess(shown === '10.00'); }
+      function reset(){
+        cancelAnimationFrame(rafId); rafId = null;
+        elapsed = 0; startTs = performance.now();
+        setSuccess(false);
+        setRunningState(false);
+        render();
+        renderString('00.00'); // ensure clear visual reset
+      }
+      function toggle(){ running ? stop() : start(); }
+
+      toggleBtn.addEventListener('click', e=>{ e.preventDefault(); toggle(); });
+      window.addEventListener('keydown', e=>{ if((e.code==='Space' || e.key===' ') && !e.repeat){ e.preventDefault(); toggle(); } else if((e.key==='r' || e.key==='R') && !e.repeat){ e.preventDefault(); reset(); } }, {passive:false});
+      window.addEventListener('resize', syncSize);
+
+      mount();
+      syncSize();
+      renderString('00.00');
+    })();
+  </script>
+</body>
+</html>
